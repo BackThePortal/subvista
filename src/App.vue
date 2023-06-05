@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref, watch, watchEffect } from 'vue';
+import { nextTick, reactive, ref, watch, watchEffect } from 'vue';
 import { useLastChanged, timestamp, useTimeAgo } from '@vueuse/core';
 
 const playing = ref(false);
@@ -11,6 +11,12 @@ const allowEnter = ref(false);
 
 const subInputValue = ref('');
 
+const showAppearance = ref(false);
+
+const appearance = reactive(localStorage.getItem('appearance') ? JSON.parse(localStorage.getItem('appearance')) : {
+	bg: '#000000', opacity: '170', blur: false, subs: '#DDDDDD', size: '18', pos: '5'
+})
+
 const liveUpdate = ref(false);
 
 const lastChange = useLastChanged(subInputValue, {
@@ -19,15 +25,28 @@ const lastChange = useLastChanged(subInputValue, {
 
 const lastChangeAgo = useTimeAgo(lastChange);
 
-watch([liveUpdate, subInputValue], () => {
-	if (liveUpdate.value) {
-		sendSubs();
-	}
-});
+
+watch(appearance, () => {
+	if (windowVideo.value) updateTheme()
+})
+
+function updateTheme() {
+	const el = windowVideo.value?.document.getElementById('subs');
+	let bgColor = appearance.bg.split('').slice(1);
+	bgColor.push(parseInt(appearance.opacity).toString(16))
+	el.style.backgroundColor = '#' + bgColor.join('')
+	el.style.color = appearance.subs;
+	el.style.fontSize = appearance.size + 'px';
+	el.style.transform = `translateY(-${appearance.pos}rem)`;
+	el.style.backdropFilter = `blur(${appearance.blur ? '8' : '0'}px)`;
+
+	localStorage.setItem('appearance', JSON.stringify(appearance));
+}
 
 function getVideoElement() {
 	return windowVideo.value?.document.getElementsByTagName('video').item(0);
 }
+
 async function handlePlayPause(e) {
 	videoControls[playing.value ? 'pause' : 'play']();
 	playing.value = !playing.value;
@@ -42,7 +61,7 @@ const videoControls = {
 		getVideoElement().pause();
 		getVideoElement().dataset.playing = 'false';
 	},
-	play: () => {
+	play:  () => {
 		getVideoElement().play();
 		getVideoElement().dataset.playing = 'true';
 	},
@@ -55,10 +74,14 @@ function createWindow(e) {
 		windowVideo.value = null;
 	} else {
 		windowVideo.value = window.open(
-			'/videoHost.html',
-			undefined,
-			'popup,width=800,height=600,left=800'
+				"/videoHost.html",
+				undefined,
+				'popup,width=800,height=600,left=800'
 		);
+		setTimeout(() => {
+			updateTheme()
+		}, 100)
+
 	}
 }
 
@@ -66,26 +89,13 @@ function handleFocus(e) {
 	windowVideo.value.focus();
 }
 
-function handleControlsOption(e) {
-	if (e.target.checked) {
-		windowVideo.value.document
-			.getElementById('video')
-			.setAttribute('controls', '');
-		windowVideo.value.document.getElementById('subs').style.transform =
-			'translateY(-2rem)';
-	} else {
-		windowVideo.value.document
-			.getElementById('video')
-			.removeAttribute('controls');
-		windowVideo.value.document.getElementById('subs').style.transform =
-			'translateY(-5rem)';
-	}
+function handleNewLine(e) {
+	subInputValue.value += '\n'
 }
 
+
 function sendSubs(e) {
-	windowVideo.value.document.getElementById('subs').innerText = (
-		allowEnter.value ? subInputArea : subInput
-	).value.value;
+	windowVideo.value.document.getElementById('subs').innerText = subInputValue.value;
 }
 
 function focusSubInput() {
@@ -95,6 +105,10 @@ function focusSubInput() {
 		subInput.value.focus();
 	}
 }
+
+function handleTemp(e) {
+	console.log(e.target.checked)
+}
 </script>
 
 <template>
@@ -102,10 +116,10 @@ function focusSubInput() {
 		<h1 class="text-5xl text-slate-300 transition hover:text-slate-100">
 			Subvista
 		</h1>
-		<p class="text-xl text-slate-300">El subtitulador en viu multifinestra.</p>
+		<p class="text-xl text-slate-300">{{ windowVideo }}</p>
 	</header>
 	<p
-		v-html="
+			v-html="
 			windowVideo
 				? `La finestra s'ha creat. Pots controlar el vídeo des d'aquí mateix.`
 				: 'Subvista funciona creant una nova finestra on es reprodueix el vídeo. ' +
@@ -113,16 +127,18 @@ function focusSubInput() {
 		"
 	></p>
 	<input
-		v-if="!windowVideo"
-		ref="videoInput"
-		class="my-2 cursor-pointer rounded-lg bg-slate-700 p-3 text-slate-300 transition file:cursor-pointer file:rounded-md file:border file:border-0 file:!border-b-2 file:!border-r-2 file:!border-r-2 file:!border-r-2 file:border-b-slate-200/100 file:border-r-slate-200/100 file:border-r-slate-200/100 file:border-r-slate-200/100 file:bg-slate-800 file:font-bold file:text-slate-200 file:transition hover:bg-slate-700 hover:bg-slate-800 active:bg-slate-600 active:ring active:ring-slate-400"
-		type="file"
-		name="Vídeo"
-		id="videoInput"
+			v-if="!windowVideo"
+			ref="videoInput"
+			class="my-2 cursor-pointer rounded-lg bg-slate-700 p-3 text-slate-300 transition file:cursor-pointer file:rounded-md file:border file:border-0 file:!border-b-2 file:!border-r-2 file:!border-r-2 file:!border-r-2 file:border-b-slate-200/100 file:border-r-slate-200/100 file:border-r-slate-200/100 file:border-r-slate-200/100 file:bg-slate-800 file:font-bold file:text-slate-200 file:transition hover:bg-slate-700 hover:bg-slate-800 active:bg-slate-600 active:ring active:ring-slate-400"
+			type="file"
+			name="Vídeo"
+			id="videoInput"
 	/>
 	<h3 v-else>Finestra</h3>
 	<div class="flex gap-2">
-		<button @click="createWindow">
+		<button
+				:class="windowVideo ? 'bg-red-700/60 active:bg-red-700 active:ring-red-500' : 'bg-green-700/60 active:bg-green-700 active:ring-green-500'"
+				@click="createWindow">
 			{{ windowVideo ? 'Tancar' : 'Crear finestra' }}
 		</button>
 		<button v-if="windowVideo" @click="handleFocus">Portar-la al davant</button>
@@ -135,47 +151,39 @@ function focusSubInput() {
 			</button>
 			<button @click="handleRestart">Des del principi</button>
 		</div>
-		<label class="mr-2 mt-2 text-slate-300" for="controlsOption"
-			>Mostrar controls a la finestra</label
-		>
-		<input
-			class="text-slate-300"
-			type="checkbox"
-			id="controlsOption"
-			@change="handleControlsOption"
-		/>
 		<h3>Subtítols</h3>
-		<!--
-		<label class="mr-2 mt-2 text-slate-300" for="enterOption"
-			>Permetre salts de línia</label
-		>
-		<input
-			class="text-slate-300"
-			type="checkbox"
-			id="enterOption"
-			v-model="allowEnter"
-			@change="focusSubInput"
-		/>
-		-->
-		<br />
-		<label class="mr-2 text-slate-300" for="liveOption">Subtítols en viu</label>
-		<input
-			class="text-slate-300"
-			type="checkbox"
-			id="liveOption"
-			v-model="liveUpdate"
-		/>
-		<br />
+		<button class=" font-semibold" @click="showAppearance = !showAppearance">Aparença</button><br />
+		<template v-if="showAppearance">
+			<label for="colorSubs">Color del text</label>
+			<input type="color" id="colorSubs" v-model="appearance.subs"/>
+			<br/>
+			<label for="colorBg">Color del fons</label>
+			<input type="color" id="colorBg" v-model="appearance.bg"/>
+			<br/>
+			<label for="bgOpacity">Opacitat del fons</label>
+			<input id="bgOpacity" type="range" min="0" max="255" v-model="appearance.opacity">
+			<br/>
+			<label for="bgBlur">Fons difuminat</label>
+			<input id="bgBlur" type="checkbox" @change="(e) => appearance.blur = e.target.checked">
+			<br/>
+			<label for="subSize">Mida del text</label>
+			<input id="subSize" type="range" min="8" max="24" v-model="appearance.size"/>
+			<br/>
+			<label for="subPos">Posició del text</label>
+			<input id="subPos" type="range" min="0" max="30" step="0.25" v-model="appearance.pos"/>
+		</template>
+
 		<div class="flex w-full flex-col place-content-center items-center gap-4">
 			<textarea
-				class="subinput mt-2"
-				ref="subInputArea"
-				v-model="subInputValue"
-				@keydown.enter.exact.prevent="sendSubs"
+					class="subinput mt-2"
+					ref="subInputArea"
+					v-model="subInputValue"
+					@keydown.enter.exact.prevent="sendSubs"
+					@keydown.enter.alt.prevent="handleNewLine"
 			/>
 		</div>
 
-		<br />
+		<br/>
 		<p v-if="!liveUpdate && !allowEnter">
 			Utilitza la tecla <kbd>Enter</kbd> per mostrar els subtítols. Utilitza
 			<kbd>Alt + Enter</kbd> per introduir un salt de línia.
@@ -186,6 +194,7 @@ function focusSubInput() {
 
 <style scoped>
 .subinput {
-	@apply h-24 w-96 rounded-md bg-slate-600 p-2 text-lg text-white outline-0 ring-slate-300 focus:ring-2;
+	@apply h-24 w-96 rounded-md bg-slate-600 p-2 text-lg text-white outline-0 ring-slate-300 focus:ring-2 shadow-2xl;
 }
+
 </style>
