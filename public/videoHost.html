@@ -24,9 +24,15 @@
 		  max-width: 20rem;
 	  }
 
-	  video {
+	  video, #ytParent {
 		  width: 100%;
 		  height: 24rem
+	  }
+
+	  #ytParent {
+			  display: flex;
+			  justify-items: center;
+			  place-content: center;
 	  }
 	</style>
 	<script>
@@ -34,6 +40,9 @@
 </head>
 <body>
 <h1 id="title" tabindex="1">Subvista Host</h1>
+<div id="ytParent">
+	<div id="yt" style="background-color: blue; height: 384px; width: 640px;"></div>
+</div>
 <video id="video">
 	<source id="videoSrc" src="example.mp4"/>
 </video>
