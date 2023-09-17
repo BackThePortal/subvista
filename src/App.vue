@@ -124,7 +124,7 @@ function createWindow() {
 			'popup,width=1000,height=600,left=1000'
 		);
 
-		windowVideo.value!.addEventListener('load', (e) => {
+		windowVideo.value!.addEventListener('load', () => {
 			updateTheme();
 			sendSubs(true);
 			setImage();
@@ -156,9 +156,9 @@ function setImage() {
 		? `url(${appearance.img})`
 		: '';
 }
-async function handleImage(e: { target: HTMLInputElement }) {
-	if (!e.target.files?.[0]) return;
-	appearance.img = e.target.files[0] && (await toBase64(e.target.files[0]));
+async function handleImage(target: HTMLInputElement) {
+	if (!target.files?.[0]) return;
+	appearance.img = target.files[0] && (await toBase64(target.files[0]));
 	setImage();
 	localStorage.setItem('img', JSON.stringify(appearance.img));
 }
@@ -184,11 +184,8 @@ function handleExport() {
 	window.URL.revokeObjectURL(url);
 }
 
-function handlePostprocess(e: { target: HTMLTextAreaElement }) {
-	let value = e.target.value;
-	e.target.value = value.endsWith('--')
-		? value.slice(0, -2).concat('—')
-		: value;
+function handlePostprocess(value: string) {
+	value = value.endsWith('--') ? value.slice(0, -2).concat('—') : value;
 	console.log(value);
 }
 </script>
@@ -322,7 +319,7 @@ function handlePostprocess(e: { target: HTMLTextAreaElement }) {
 				name="Vídeo"
 				id="videoInput"
 				accept="image/png, image/jpeg"
-				@change="handleImage"
+				@change="(e) => handleImage(e.target as HTMLInputElement)"
 			/>
 		</template>
 		<div class="flex w-full flex-col place-content-center items-center gap-4">
@@ -333,7 +330,7 @@ function handlePostprocess(e: { target: HTMLTextAreaElement }) {
 				@keydown.enter.exact.prevent="() => sendSubs()"
 				@keydown.enter.alt.prevent="handleNewLine"
 				@keydown.enter.shift.prevent="handleNewLine"
-				@input="handlePostprocess"
+				@input="(e: Event) => handlePostprocess((e.target! as HTMLTextAreaElement).value)"
 			/>
 			<div
 				class="group text-center text-xl text-slate-300"
