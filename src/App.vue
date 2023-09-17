@@ -1,36 +1,57 @@
-<script setup>
-import { nextTick, reactive, ref, watch, watchEffect } from 'vue';
-import { useLastChanged, timestamp, useTimeAgo } from '@vueuse/core';
+<script setup lang="ts">
+import { computed, reactive, ref, toRaw, watch } from 'vue';
+import {
+	useLastChanged,
+	timestamp,
+	useTimeAgo,
+	useRefHistory,
+} from '@vueuse/core';
 
 const playing = ref(false);
-const videoInput = ref(null);
-const windowVideo = ref();
+const windowVideo = ref<null | Window>(null);
 const subInput = ref(null);
-const subInputArea = ref(null);
+const subInputArea = ref<HTMLTextAreaElement | null>(null);
 const allowEnter = ref(false);
 
 const subInputValue = ref('');
-
-const showAppearance = ref(false);
-
-const videoSource = ref('yt');
-
-/**
- *
- * @type {Ref<UnwrapRef<HTMLScriptElement | null>>}
- */
-const ytIframe = ref(null);
+const subsPreSend = ref<string>('Els subtítols apareixeran aquí.');
+const subsPreSendLines = computed<string[]>(() =>
+	subsPreSend.value.split(/\r\n|\r|\n/g)
+);
+const { history: subsRawHistory } = useRefHistory(subsPreSend);
+const subsHistory = computed<{ timestamp: string; snapshot: string }[]>(() =>
+	subsRawHistory.value.slice(0, -1).map((item) => ({
+		...item,
+		timestamp: new Date(item.timestamp).toLocaleTimeString(),
+	}))
+);
+type Pages = 'subs' | 'bg';
+const settingsPage = ref<false | Pages>(false);
+const setPage = (btn: Pages) => (settingsPage.value === btn ? false : btn);
+const toBase64 = (file: File) =>
+	new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.readAsDataURL(file);
+		reader.onload = () => resolve(reader.result);
+		reader.onerror = reject;
+	});
 
 const appearance = reactive(
 	localStorage.getItem('appearance')
-		? JSON.parse(localStorage.getItem('appearance'))
+		? {
+				...JSON.parse(localStorage.getItem('appearance')!),
+				img: JSON.parse(localStorage.getItem('img')!),
+		  }
 		: {
-				bg: '#000000',
+				box: '#000000',
+				bg: '#181818',
 				opacity: '170',
 				blur: false,
+				blurAmount: '8',
 				subs: '#DDDDDD',
-				size: '18',
-				pos: '5',
+				size: '4',
+				pos: '0',
+				img: '',
 		  }
 );
 
@@ -45,30 +66,39 @@ const lastChangeAgo = useTimeAgo(lastChange);
 watch(appearance, () => {
 	if (windowVideo.value) updateTheme();
 });
-
-function updateTheme() {
+async function updateTheme() {
 	const el = windowVideo.value?.document.getElementById('subs');
-	let bgColor = appearance.bg.split('').slice(1);
-	bgColor.push(parseInt(appearance.opacity).toString(16));
-	el.style.backgroundColor = '#' + bgColor.join('');
+	if (!el) return;
+	const bg = windowVideo.value?.document.getElementById('bg')!;
+	el.style.backgroundColor =
+		'#' +
+		[
+			...appearance.box.split('').slice(1),
+			parseInt(appearance.opacity).toString(16).padStart(2, '0'),
+		].join('');
 	el.style.color = appearance.subs;
-	el.style.fontSize = appearance.size + 'px';
-	el.style.transform = `translateY(-${appearance.pos}rem)`;
-	el.style.backdropFilter = `blur(${appearance.blur ? '8' : '0'}px)`;
+	el.style.fontSize = appearance.size + 'em';
+	el.style.transform = `translateY(${appearance.pos}rem)`;
+	bg.style.backgroundColor = appearance.bg;
+	el.style.backdropFilter = `blur(${
+		appearance.blur ? appearance.blurAmount : '0'
+	}px)`;
 
-	localStorage.setItem('appearance', JSON.stringify(appearance));
+	const dataClone = structuredClone(toRaw(appearance));
+	delete dataClone.img;
+	localStorage.setItem('appearance', JSON.stringify(dataClone));
 }
-
+/*
 function getVideoElement() {
 	return windowVideo.value?.document.getElementsByTagName('video').item(0);
 }
 
-async function handlePlayPause(e) {
+async function handlePlayPause() {
 	videoControls[playing.value ? 'pause' : 'play']();
 	playing.value = !playing.value;
 }
 
-function handleRestart(e) {
+function handleRestart() {
 	getVideoElement().currentTime = 0;
 }
 
@@ -82,47 +112,84 @@ const videoControls = {
 		getVideoElement().dataset.playing = 'true';
 	},
 };
-
-function createWindow(e) {
-	console.log(windowVideo.value);
+*/
+function createWindow() {
 	if (windowVideo.value) {
 		windowVideo.value.close();
 		windowVideo.value = null;
 	} else {
 		windowVideo.value = window.open(
-			'/videoHost.html',
+			'/host.html',
 			undefined,
-			'popup,width=800,height=600,left=800'
+			'popup,width=1000,height=600,left=1000'
 		);
-		setTimeout(() => {
+
+		windowVideo.value!.addEventListener('load', (e) => {
 			updateTheme();
-		}, 100);
+			sendSubs(true);
+			setImage();
+		});
 	}
 }
 
-function handleFocus(e) {
-	windowVideo.value.focus();
+function handleFocus() {
+	windowVideo.value!.focus();
 }
 
-function handleNewLine(e) {
+function handleNewLine() {
 	subInputValue.value += '\n';
 }
 
-function sendSubs(e) {
-	windowVideo.value.document.getElementById('subs').innerText =
-		subInputValue.value;
+function sendSubs(manual = false) {
+	if (!manual) subsPreSend.value = subInputValue.value;
+	windowVideo.value!.document.getElementById('subs')!.innerText =
+		subsPreSend.value;
+	subInputValue.value = '';
 }
 
-function focusSubInput() {
-	if (allowEnter.value) {
-		subInputArea.value.focus();
-	} else {
-		subInput.value.focus();
-	}
+function handleSubsClick() {
+	subInputValue.value = subsPreSend.value;
 }
 
-function handleTemp(e) {
-	console.log(e.target.checked);
+function setImage() {
+	windowVideo.value!.document.body.style.backgroundImage = appearance.img
+		? `url(${appearance.img})`
+		: '';
+}
+async function handleImage(e: { target: HTMLInputElement }) {
+	if (!e.target.files?.[0]) return;
+	appearance.img = e.target.files[0] && (await toBase64(e.target.files[0]));
+	setImage();
+	localStorage.setItem('img', JSON.stringify(appearance.img));
+}
+
+function handleExport() {
+	const file = new File(
+		[
+			subsHistory.value
+				.map((item) => `${item.timestamp}\n${item.snapshot}`)
+				.join('\n\n'),
+		],
+		'subs.txt',
+		{
+			type: 'text/plain',
+		}
+	);
+
+	const link = document.createElement('a');
+	const url = URL.createObjectURL(file);
+	link.href = url;
+	link.download = file.name;
+	link.click();
+	window.URL.revokeObjectURL(url);
+}
+
+function handlePostprocess(e: { target: HTMLTextAreaElement }) {
+	let value = e.target.value;
+	e.target.value = value.endsWith('--')
+		? value.slice(0, -2).concat('—')
+		: value;
+	console.log(value);
 }
 </script>
 
@@ -131,81 +198,37 @@ function handleTemp(e) {
 		<h1 class="text-5xl text-slate-300 transition hover:text-slate-100">
 			Subvista
 		</h1>
-		<p class="text-xl text-slate-300">{{ windowVideo }}</p>
 	</header>
 	<p
 		v-html="
 			windowVideo
-				? `La finestra s'ha creat. Pots controlar el vídeo des d'aquí mateix.`
-				: 'Subvista funciona creant una nova finestra on es reprodueix el vídeo. ' +
-				  'Els subtítols que escriguis hi aniran apareixent. <br>Comença pujant el vídeo que vulguis subtitular.'
+				? ''
+				: 'Subvista funciona creant una nova finestra on es mostren els subtítols.' +
+				  '<br />El text que escriguis hi anirà apareixent.'
 		"
 	></p>
-	<template v-if="!windowVideo">
-		<h3>
-			<input
-				type="radio"
-				id="fileRadio"
-				name="source"
-				value="file"
-				v-model="videoSource"
-			/><label
-				class="transition"
-				:class="[videoSource === 'file' ? '' : 'opacity-60 hover:opacity-80']"
-				for="fileRadio"
-				>Des d'un fitxer</label
-			>
-		</h3>
-		<input
-			ref="videoInput"
-			class="my-2 rounded-lg bg-slate-700 p-3 text-slate-300 transition file:cursor-pointer file:rounded-md file:border file:border-0 file:!border-b-2 file:!border-r-2 file:!border-r-2 file:!border-r-2 file:border-b-slate-200/100 file:border-r-slate-200/100 file:border-r-slate-200/100 file:border-r-slate-200/100 file:bg-slate-800 file:font-bold file:text-slate-200 file:transition disabled:opacity-40"
-			:class="{
-				'cursor-pointer file:cursor-default hover:bg-slate-700 hover:bg-slate-800 active:bg-slate-600 active:ring active:ring-slate-400':
-					videoSource === 'file',
-			}"
-			:disabled="videoSource !== 'file'"
-			type="file"
-			name="Vídeo"
-			id="videoInput"
-		/>
-		<h3>
-			<input
-				type="radio"
-				id="ytRadio"
-				name="source"
-				value="yt"
-				v-model="videoSource"
-			/><label
-				class="transition"
-				:class="[videoSource === 'yt' ? '' : 'opacity-60 hover:opacity-80']"
-				for="ytRadio"
-				>Des de YouTube</label
-			>
-		</h3>
-		<input
-			class="w-[18.5rem] placeholder-slate-300/50 transition disabled:opacity-40"
-			type="text"
-			id="ytsrc"
-			placeholder="youtube.com/watch?v=dQw4w9WgXcQ"
-			:disabled="videoSource !== 'yt'"
-		/>
-	</template>
 
-	<h3 v-else>Finestra</h3>
-	<div class="flex gap-2">
+	<h3 v-if="windowVideo">Finestra</h3>
+	<div
+		class="flex flex-wrap gap-2"
+		:class="{ 'items-center justify-center': !windowVideo }"
+	>
 		<button
 			:class="
 				windowVideo
 					? 'bg-red-700/60 active:bg-red-700 active:ring-red-500'
-					: 'bg-green-700/60 active:bg-green-700 active:ring-green-500'
+					: 'mt-4  bg-green-700/60 text-xl active:bg-green-700 active:ring-green-500'
 			"
 			@click="createWindow"
 		>
 			{{ windowVideo ? 'Tancar' : 'Crear finestra' }}
 		</button>
-		<button v-if="windowVideo" @click="handleFocus">Portar-la al davant</button>
+		<template v-if="windowVideo">
+			<button @click="handleFocus">Portar-la al davant</button>
+		</template>
 	</div>
 	<template v-if="windowVideo">
+		<!--
 		<h3>Vídeo</h3>
 		<div class="flex gap-2">
 			<button @click="handlePlayPause">
@@ -213,16 +236,30 @@ function handleTemp(e) {
 			</button>
 			<button @click="handleRestart">Des del principi</button>
 		</div>
-		<h3>Subtítols</h3>
-		<button class="font-semibold" @click="showAppearance = !showAppearance">
-			Aparença</button
-		><br />
-		<template v-if="showAppearance">
+		-->
+		<h3>Aparença</h3>
+		<!--
+		<div class="mb-2 flex gap-2">
+			<button class="font-semibold" @click="settingsPage = setPage('subs')">
+				Subtítols
+			</button>
+			<button class="font-semibold" @click="settingsPage = setPage('bg')">
+				Fons
+			</button>
+		</div>-->
+		<template
+			v-if="
+				true //settingsPage === 'subs'
+			"
+		>
+			<label for="colorBg">Color de la pàgina</label>
+			<input type="color" id="colorBg" v-model="appearance.bg" />
+			<br />
 			<label for="colorSubs">Color del text</label>
 			<input type="color" id="colorSubs" v-model="appearance.subs" />
 			<br />
-			<label for="colorBg">Color del fons</label>
-			<input type="color" id="colorBg" v-model="appearance.bg" />
+			<label for="colorBox">Color del fons</label>
+			<input type="color" id="colorBox" v-model="appearance.box" />
 			<br />
 			<label for="bgOpacity">Opacitat del fons</label>
 			<input
@@ -232,6 +269,7 @@ function handleTemp(e) {
 				max="255"
 				v-model="appearance.opacity"
 			/>
+			<!--
 			<br />
 			<label for="bgBlur">Fons difuminat</label>
 			<input
@@ -239,44 +277,105 @@ function handleTemp(e) {
 				type="checkbox"
 				:checked="appearance.blur"
 				@change="(e) => (appearance.blur = e.target.checked)"
-			/>
+			/>-->
 			<br />
-			<label for="subSize">Mida del text</label>
+			<template v-if="appearance.blur">
+				<label for="bgBlurAmount">Opacitat del fons</label>
+				<input
+					id="bgBlurAmount"
+					type="range"
+					min="2"
+					step="0.1"
+					max="12"
+					v-model="appearance.blurAmount"
+				/>
+				<br />
+			</template>
+
+			<label for="subSize">Mida</label>
 			<input
 				id="subSize"
 				type="range"
-				min="8"
-				max="24"
+				min="1"
+				max="12"
+				step="0.25"
 				v-model="appearance.size"
-			/>
+			/><!--
 			<br />
-			<label for="subPos">Posició del text</label>
+			<label for="subPos">Posició</label>
 			<input
 				id="subPos"
 				type="range"
-				min="0"
+				min="-30"
 				max="30"
 				step="0.25"
 				v-model="appearance.pos"
+			/>-->
+		</template>
+		<template v-if="settingsPage === 'bg'">
+			<label for="bgImage">Imatge de fons</label>
+			<br />
+			<input
+				ref="bgImage"
+				class="mb-2 cursor-pointer rounded-lg bg-slate-700 p-3 text-slate-300 transition file:cursor-pointer file:rounded-md file:border-0 file:!border-b-2 file:!border-r-2 file:border-b-slate-200/100 file:border-r-slate-200/100 file:bg-slate-800 file:font-bold file:text-slate-200 file:transition hover:bg-slate-700 active:bg-slate-600 active:ring active:ring-slate-400 disabled:opacity-40"
+				type="file"
+				name="Vídeo"
+				id="videoInput"
+				accept="image/png, image/jpeg"
+				@change="handleImage"
 			/>
 		</template>
-
 		<div class="flex w-full flex-col place-content-center items-center gap-4">
 			<textarea
 				class="subinput mt-2"
 				ref="subInputArea"
 				v-model="subInputValue"
-				@keydown.enter.exact.prevent="sendSubs"
+				@keydown.enter.exact.prevent="() => sendSubs()"
 				@keydown.enter.alt.prevent="handleNewLine"
+				@keydown.enter.shift.prevent="handleNewLine"
+				@input="handlePostprocess"
 			/>
+			<div
+				class="group text-center text-xl text-slate-300"
+				@click="handleSubsClick"
+			>
+				<p
+					class="transition group-hover:text-slate-50"
+					v-for="line in subsPreSendLines"
+				>
+					{{ line }}
+				</p>
+			</div>
+			<!--<span class="text-white">Últim canvi: {{ lastChangeAgo }}</span>-->
 		</div>
 
 		<br />
-		<p v-if="!liveUpdate && !allowEnter">
-			Utilitza la tecla <kbd>Enter</kbd> per mostrar els subtítols. Utilitza
-			<kbd>Alt + Enter</kbd> per introduir un salt de línia.
-		</p>
-		<p class="text-white">Últim canvi: {{ lastChangeAgo }}</p>
+		<template v-if="!liveUpdate && !allowEnter">
+			<h3>Controls</h3>
+			<span class="text-slate-300">Mentre escrius...</span>
+			<p>
+				<kbd>Enter</kbd> &mdash; Mostrar els subtítols. <br />
+				<kbd>Alt + Enter</kbd> / <kbd>Shift + Enter</kbd> &mdash; Introduir un
+				salt de línia.
+				<br />
+				<br />
+				Doble clic a la finestra &mdash; Pantalla completa. <br />
+			</p>
+		</template>
+
+		<h3>Historial</h3>
+		<div>
+			<span class="italic text-slate-400" v-if="subsHistory.length === 0"
+				>Cap ítem</span
+			>
+			<div v-else v-for="item in subsHistory">
+				<span class="text-slate-200">{{ item.timestamp }}</span>
+				<span class="ml-2 text-slate-400">{{ item.snapshot }}</span>
+			</div>
+		</div>
+		<button v-if="subsHistory.length > 0" @click="handleExport">
+			Exportar
+		</button>
 	</template>
 </template>
 

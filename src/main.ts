@@ -1,11 +1,20 @@
-import './assets/main.css'
+import './assets/main.css';
 
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import App from './App.vue'
+import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import App from './App.vue';
 
-const app = createApp(App)
+const app = createApp(App);
+const currentBuild = 1;
 
-app.use(createPinia())
+if (
+	localStorage.getItem('build') &&
+	localStorage.getItem('build') !== currentBuild.toString()
+)
+	localStorage.clear();
 
-app.mount('#app')
+localStorage.setItem('build', '1');
+
+app.use(createPinia());
+
+app.mount('#app');
