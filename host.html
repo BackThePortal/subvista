@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Subvista Host</title>
+		<style>
+			body {
+				font-family: sans-serif;
+				color: #fff;
+				background-size: cover;
+				margin: 0;
+			}
+
+			#subsBox {
+				display: flex;
+				justify-content: center;
+				height: 100vh;
+				width: 100vw;
+				flex-wrap: wrap;
+				align-content: center;
+			}
+
+			#subs {
+				text-align: center;
+				padding: 0.5em;
+				max-width: 18em;
+				height: fit-content;
+				overflow-wrap: break-word;
+				user-select: none;
+				border-radius: 0.5em;
+				margin: 0 2rem;
+			}
+		</style>
+		<script>
+			let lastClick = null;
+			document.addEventListener('click', (e) => {
+				if (!document.fullscreenEnabled) return;
+				if (Date.now() - lastClick > 500) {
+					lastClick = Date.now();
+				} else {
+					lastClick = null;
+					if (document.fullscreenElement) {
+						document.exitFullscreen();
+					} else {
+						document.body.requestFullscreen();
+					}
+				}
+			});
+		</script>
+	</head>
+	<body>
+		<!--
+<video id="video">
+	<source id="videoSrc" src="example.mp4"/>
+</video>
+-->
+		<main id="bg">
+			<div id="subsBox">
+				<p
+					id="subs"
+					style="background-color: #000000aa; color: #ddd; font-size: 18px"
+				>
+					Els subtítols apareixeran aquí.
+				</p>
+			</div>
+		</main>
+	</body>
+</html>
