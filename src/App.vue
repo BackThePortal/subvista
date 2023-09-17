@@ -119,7 +119,7 @@ function createWindow() {
 		windowVideo.value = null;
 	} else {
 		windowVideo.value = window.open(
-			'/host.html',
+			'/subvista/host.html',
 			undefined,
 			'popup,width=1000,height=600,left=1000'
 		);
