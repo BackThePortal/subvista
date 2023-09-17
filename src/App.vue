@@ -346,7 +346,6 @@ function handlePostprocess(e: { target: HTMLTextAreaElement }) {
 					{{ line }}
 				</p>
 			</div>
-			<!--<span class="text-white">Últim canvi: {{ lastChangeAgo }}</span>-->
 		</div>
 
 		<br />
