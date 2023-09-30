@@ -12,7 +12,10 @@ module.exports = {
             sans: [
                 'Nunito', ...defaultTheme.fontFamily.sans
             ]
-        }
+        },
+        maxWidth: {
+            '8xl': '88rem',
+        },
     },
   },
   plugins: [],

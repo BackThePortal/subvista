@@ -20,16 +20,27 @@
 				align-content: center;
 			}
 
+            #subsBoxContainer {
+
+                background-color: #000000aa;
+                color: #ddd;
+                padding: 1rem;
+                line-height: 1;
+                border-radius: 0.5em;
+                font-size: 18px;
+            }
+
 			#subs {
 				text-align: center;
-				padding: 0.5em;
 				max-width: 18em;
-				height: fit-content;
+				max-height: 8rem;
 				overflow-wrap: break-word;
 				user-select: none;
-				border-radius: 0.5em;
-				margin: 0 2rem;
+                overflow-y: hidden;
+
 			}
+
+
 		</style>
 		<script>
 			let lastClick = null;
@@ -49,19 +60,11 @@
 		</script>
 	</head>
 	<body>
-		<!--
-<video id="video">
-	<source id="videoSrc" src="example.mp4"/>
-</video>
--->
 		<main id="bg">
 			<div id="subsBox">
-				<p
-					id="subs"
-					style="background-color: #000000aa; color: #ddd; font-size: 18px"
-				>
-					Els subtítols apareixeran aquí.
-				</p>
+                <div id="subsBoxContainer">
+				    <div id="subs"></div>
+                </div>
 			</div>
 		</main>
 	</body>
