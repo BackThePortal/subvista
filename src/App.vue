@@ -155,6 +155,7 @@ function sendSubs(manual = false) {
 							rows="2"
 							class="w-full rounded-md bg-slate-600 p-2 text-xl text-white shadow-2xl outline-0 ring-slate-300 focus:ring-2 disabled:text-slate-300"
 							ref="subInputArea"
+							placeholder="Escriu aquí..."
 							v-model="subInputValue"
 							@keydown.enter.alt.prevent="handleNewLine"
 							@keydown.enter.shift.prevent="handleNewLine"
